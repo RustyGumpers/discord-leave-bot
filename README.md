@@ -32,16 +32,16 @@ No Message Content Intent is needed. The bot does not read message content.
 - `STEAM_LINK_LOOKUP_TOKEN`: shared bearer secret for that endpoint
 
 ## Steam-link integration requirement
-The Steam-link bot and this bot run as separate Railway services, so they cannot safely assume they share a local SQLite file. Add a read-only endpoint to the existing Steam-link bot that:
+The Steam-link bot and this bot run as separate Railway services, so they cannot safely assume they share a local SQLite file. Configure the read-only endpoint in the existing Steam-link bot (the endpoint is included in this repository's current `index.js`) that:
 - accepts `GET /internal/steam-link/:discordId`
 - requires `Authorization: Bearer <STEAM_LINK_LOOKUP_TOKEN>`
 - queries the existing `steam_links` table by `discord_id`
 - returns `{ "steamId": "17-digit-id" }` when linked, or HTTP 404 when not linked
 - never returns sync tokens or any other database fields
 
-Set the same long random `STEAM_LINK_LOOKUP_TOKEN` on both Railway services. Do not expose the endpoint without authentication. Until this endpoint is added and configured, departure notifications will correctly show "No Steam account linked" because the lookup is disabled.
+Set `STEAM_LINK_LOOKUP_TOKEN` to the same randomly generated 64-character hexadecimal secret in both Railway services. The Steam-link endpoint rejects requests unless the bearer token matches; it returns only the Steam ID, never sync tokens or other database fields. In the departure bot, set `STEAM_LINK_LOOKUP_URL` to `https://steam-link-production.up.railway.app/internal/steam-link` (no trailing slash). If either variable is missing or incorrect, the departure notification will show that Steam lookup is unavailable.
 
-## Important behavior
+## Railway integration setup\n1. In the Steam-link Railway service, add `STEAM_LINK_LOOKUP_TOKEN` with a securely generated 64-character hexadecimal value.\n2. Add the exact same value as `STEAM_LINK_LOOKUP_TOKEN` in the departure-bot Railway service.\n3. In the departure-bot service, set `STEAM_LINK_LOOKUP_URL` to `https://steam-link-production.up.railway.app/internal/steam-link`.\n4. Redeploy both services. Keep the token private; do not commit it to GitHub or put it in source code.\n\nGenerate a value locally with `openssl rand -hex 32`.\n\n## Important behavior
 Discord's member-remove event does not identify whether someone left or was kicked. The bot checks recent audit-log entries and retries briefly. Ban events are separately detected. If Discord does not expose a matching audit entry, the moderator may show as unknown; a kick could be classified as a voluntary leave if the audit entry is unavailable. Keep View Audit Log permission enabled.
 
 SQLite stores one row per departure. Rejoining and leaving again creates another record. The bot suppresses duplicate processing for the same departure event.
